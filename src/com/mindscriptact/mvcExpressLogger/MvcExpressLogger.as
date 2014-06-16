@@ -1,22 +1,23 @@
 package com.mindscriptact.mvcExpressLogger {
 import com.bit101.components.CheckBox;
-import com.bit101.components.List;
 import com.bit101.components.NumericStepper;
 import com.bit101.components.PushButton;
 import com.bit101.components.Style;
 import com.bit101.components.Text;
 import com.bit101.components.Window;
 import com.mindscriptact.mvcExpressLogger.screens.MvcExpressLogScreen;
+import com.mindscriptact.mvcExpressLogger.screens.MvcExpressVisualizerScreen;
+import com.mindscriptact.mvcExpressLogger.visualizer.VisualizerManager;
 import flash.display.Shape;
 import flash.display.Sprite;
 import flash.display.Stage;
 import flash.events.Event;
 import flash.events.KeyboardEvent;
 import flash.events.MouseEvent;
-import flash.ui.Mouse;
 import flash.utils.setTimeout;
 import org.mvcexpress.core.ModuleManager;
-import org.mvcexpress.modules.ModuleCore;
+import org.mvcexpress.core.namespace.pureLegsCore;
+import org.mvcexpress.core.traceObjects.TraceObj;
 import org.mvcexpress.MvcExpress;
 
 /**
@@ -25,14 +26,16 @@ import org.mvcexpress.MvcExpress;
  */
 public class MvcExpressLogger {
 	
-	static private const LOG_LABEL:String = "LOG";
-	static private const MESSAGES_LABEL:String = "MESSAGES";
-	static private const MEDIATORS_LABEL:String = "MEDIATORS";
-	static private const PROXIES_LABEL:String = "PROXIES";
-	static private const COMMANDS_LABEL:String = "COMMANDS";
+	static public const LOG_TAB:String = "LOG";
+	static public const MESSAGES_TAB:String = "MESSAGES";
+	static public const MEDIATORS_TAB:String = "MEDIATORS";
+	static public const PROXIES_TAB:String = "PROXIES";
+	static public const COMMANDS_TAB:String = "COMMANDS";
+	static public const VISUALIZER_TAB:String = "VISUALIZER";
 	//
 	static private var allowInstantiation:Boolean;
 	static private var instance:MvcExpressLogger;
+	static private var visualizerManager:VisualizerManager;
 	// view params
 	private var stage:Stage;
 	private var x:int;
@@ -61,22 +64,22 @@ public class MvcExpressLogger {
 	private var isRenderWaiting:Boolean = false;
 	private var autoLogCheckBox:CheckBox;
 	private var useAutoScroll:Boolean = true;
+	private var initTab:String;
 	
 	public function MvcExpressLogger() {
 		if (!allowInstantiation) {
-			throw Error("MvcExpressLogger is singleton and will be instantiated with first use or MvcExpressLogger.logModule() or MvcExpressLogger.showIn()");
+			throw Error("MvcExpressLogger is singleton and will be instantiated with first use or MvcExpressLogger.init() or MvcExpressLogger.showIn()");
 		}
 	}
 	
-	static public function init(stage:Stage, x:int = 0, y:int = 0, width:int = 600, height:int = 400, alpha:Number = 0.9, autoShow:Boolean = false, openKeyCode:int = 192, isCtrlKeyNeeded:Boolean = true, isShiftKeyNeeded:Boolean = false, isAltKeyNeeded:Boolean = false):void {
-		
-		
+	static public function init(stage:Stage, x:int = 0, y:int = 0, width:int = 900, height:int = 400, alpha:Number = 0.9, autoShow:Boolean = false, initTab:String = "LOG", openKeyCode:int = 192, isCtrlKeyNeeded:Boolean = true, isShiftKeyNeeded:Boolean = false, isAltKeyNeeded:Boolean = false):void {
 		
 		if (!instance) {
 			allowInstantiation = true;
 			instance = new MvcExpressLogger();
 			allowInstantiation = false;
-			
+			//
+			visualizerManager = new VisualizerManager();
 			//
 			instance.stage = stage;
 			stage.root.addEventListener(KeyboardEvent.KEY_DOWN, instance.handleKeyPress);
@@ -86,6 +89,7 @@ public class MvcExpressLogger {
 			instance.width = width;
 			instance.height = height;
 			instance.alpha = alpha;
+			instance.initTab = initTab;
 			instance.openKeyCode = openKeyCode;
 			instance.isCtrlKeyNeeded = isCtrlKeyNeeded;
 			instance.isShiftKeyNeeded = isShiftKeyNeeded;
@@ -94,7 +98,8 @@ public class MvcExpressLogger {
 			Style.LABEL_TEXT = 0xFFFFFF;
 		}
 		
-		MvcExpress.debugFunction = instance.traceMvcExpress;
+		use namespace pureLegsCore;
+		MvcExpress.loggerFunction = instance.debugMvcExpress;
 		
 		if (autoShow) {
 			instance.showLogger();
@@ -117,54 +122,62 @@ public class MvcExpressLogger {
 		}
 	}
 	
-	private function traceMvcExpress(msg:String):void {
-		// TODO: refactor
-		logText += msg + "\n";
+	private function debugMvcExpress(traceObj:TraceObj):void {
 		//
-		if (isLogShown) {
+		visualizerManager.logMvcExpress(traceObj);
+		//
+		if (traceObj.canPrint) {
 			
-			var logType:String = msg.substr(0, 2);
-			
-			if (logType == "##") {
-				setTimeout(resolveCurrentModuleName, 1);
-			} else {
-				switch (currentTabButtonName) {
-					case LOG_LABEL: 
-						render();
-						break;
-					case MESSAGES_LABEL: 
-						if (logType == "••" || logType == "•>") {
-							if (!isRenderWaiting) {
-								isRenderWaiting = true;
-								setTimeout(render, 1);
+			// TODO: refactor 
+			logText += traceObj + "\n";
+			//
+			if (isLogShown) {
+				
+				var logType:String = String(traceObj).substr(0, 2);
+				
+				if (logType == "##") {
+					setTimeout(resolveCurrentModuleName, 1);
+				} else {
+					switch (currentTabButtonName) {
+						case LOG_TAB: 
+							render();
+							break;
+						case MESSAGES_TAB: 
+							if (logType == "••" || logType == "•>") {
+								if (!isRenderWaiting) {
+									isRenderWaiting = true;
+									setTimeout(render, 1);
+								}
 							}
-						}
-						break;
-					case MEDIATORS_LABEL: 
-						if (logType == "§§") {
-							if (!isRenderWaiting) {
-								isRenderWaiting = true;
-								setTimeout(render, 1);
+							break;
+						case MEDIATORS_TAB: 
+							if (logType == "§§") {
+								if (!isRenderWaiting) {
+									isRenderWaiting = true;
+									setTimeout(render, 1);
+								}
 							}
-						}
-						break;
-					case PROXIES_LABEL: 
-						if (logType == "¶¶") {
-							if (!isRenderWaiting) {
-								isRenderWaiting = true;
-								setTimeout(render, 1);
+							break;
+						case PROXIES_TAB: 
+							if (logType == "¶¶") {
+								if (!isRenderWaiting) {
+									isRenderWaiting = true;
+									setTimeout(render, 1);
+								}
 							}
-						}
-						break;
-					case COMMANDS_LABEL: 
-						if (logType == "©©") {
-							if (!isRenderWaiting) {
-								isRenderWaiting = true;
-								setTimeout(render, 1);
+							break;
+						case COMMANDS_TAB: 
+							if (logType == "©©") {
+								if (!isRenderWaiting) {
+									isRenderWaiting = true;
+									setTimeout(render, 1);
+								}
 							}
-						}
-						break;
-					default: 
+							break;
+						case VISUALIZER_TAB: 
+							break;
+						default: 
+					}
 				}
 			}
 		}
@@ -210,31 +223,31 @@ public class MvcExpressLogger {
 			
 			allButtons = new Vector.<PushButton>();
 			
-			var logButton:PushButton = new PushButton(logWindow, 0, -0, LOG_LABEL, handleButtonClick);
+			var logButton:PushButton = new PushButton(logWindow, 0, -0, LOG_TAB, handleButtonClick);
 			logButton.toggle = true;
 			logButton.width = 50;
 			logButton.x = moduleStepper.x + moduleStepper.width + 10;
 			allButtons.push(logButton);
 			
-			var messageMapingButton:PushButton = new PushButton(logWindow, 0, -0, MESSAGES_LABEL, handleButtonClick);
+			var messageMapingButton:PushButton = new PushButton(logWindow, 0, -0, MESSAGES_TAB, handleButtonClick);
 			messageMapingButton.toggle = true;
 			messageMapingButton.width = 60;
 			messageMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(messageMapingButton);
 			
-			var mediatorMapingButton:PushButton = new PushButton(logWindow, 0, -0, MEDIATORS_LABEL, handleButtonClick);
+			var mediatorMapingButton:PushButton = new PushButton(logWindow, 0, -0, MEDIATORS_TAB, handleButtonClick);
 			mediatorMapingButton.toggle = true;
 			mediatorMapingButton.width = 60;
 			mediatorMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(mediatorMapingButton);
 			
-			var proxyMapingButton:PushButton = new PushButton(logWindow, 0, -0, PROXIES_LABEL, handleButtonClick);
+			var proxyMapingButton:PushButton = new PushButton(logWindow, 0, -0, PROXIES_TAB, handleButtonClick);
 			proxyMapingButton.toggle = true;
 			proxyMapingButton.width = 50;
 			proxyMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(proxyMapingButton);
 			
-			var commandMapingButton:PushButton = new PushButton(logWindow, 0, -0, COMMANDS_LABEL, handleButtonClick);
+			var commandMapingButton:PushButton = new PushButton(logWindow, 0, -0, COMMANDS_TAB, handleButtonClick);
 			commandMapingButton.toggle = true;
 			commandMapingButton.width = 60;
 			commandMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
@@ -249,13 +262,31 @@ public class MvcExpressLogger {
 			autoLogCheckBox.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 70;
 			autoLogCheckBox.selected = true;
 			
+			var visualizerButton:PushButton = new PushButton(logWindow, 0, -0, VISUALIZER_TAB, handleButtonClick);
+			visualizerButton.toggle = true;
+			visualizerButton.width = 60;
+			visualizerButton.x = 600;
+			allButtons.push(visualizerButton);
+			
 		}
 		//forceThisOnTop();
 		stage.addChild(logWindow);
 		
 		resolveCurrentModuleName();
 		
-		handleButtonClick();
+		delayedAutoButtonClick()
+	}
+	
+	private function delayedAutoButtonClick():void {
+		if (!currentTabButtonName) {
+			resolveCurrentModuleName();
+			if (currentModuleName != "") {
+				handleButtonClick();
+			} else {
+				setTimeout(delayedAutoButtonClick, 100);
+			}
+		}
+	
 	}
 	
 	private function handleClearLog(event:MouseEvent):void {
@@ -302,6 +333,7 @@ public class MvcExpressLogger {
 	private function handleModuleChange(event:Event):void {
 		currentModuleName = allModuleNames[moduleStepper.value];
 		currentModuleText.text = currentModuleName;
+		visualizerManager.manageThisScreen(currentModuleName, currentScreen as MvcExpressVisualizerScreen);
 		render();
 	}
 	
@@ -309,8 +341,17 @@ public class MvcExpressLogger {
 		if (event) {
 			var targetButton:PushButton = (event.target as PushButton);
 		} else {
+			// select first button by default.
 			targetButton = allButtons[0];
 			targetButton.selected = true;
+			// if initTab properly passed - start with that tab.
+			for (var j:int = 0; j < allButtons.length; j++) {
+				if (allButtons[j].label == initTab) {
+					targetButton = allButtons[j];
+					targetButton.selected = true;
+					break;
+				}
+			}
 		}
 		
 		if (currentTogleButton != targetButton) {
@@ -327,15 +368,23 @@ public class MvcExpressLogger {
 			}
 			currentTabButtonName = targetButton.label;
 			
-			autoLogCheckBox.visible = (currentTabButtonName == LOG_LABEL)
+			autoLogCheckBox.visible = (currentTabButtonName == LOG_TAB)
 			
 			switch (currentTabButtonName) {
+				case VISUALIZER_TAB: 
+					currentScreen = new MvcExpressVisualizerScreen(width - 6, height - 52);
+					currentScreen.x = 3;
+					currentScreen.y = 25;
+					visualizerManager.manageThisScreen(currentModuleName, currentScreen as MvcExpressVisualizerScreen);
+					break;
 				default: 
 					currentScreen = new MvcExpressLogScreen(width - 6, height - 52);
 					currentScreen.x = 3;
 					currentScreen.y = 25;
-					render();
+					visualizerManager.manageNothing();
+					break;
 			}
+			render();
 			if (currentScreen) {
 				logWindow.addChild(currentScreen);
 				
@@ -350,25 +399,28 @@ public class MvcExpressLogger {
 		isRenderWaiting = false;
 		
 		switch (currentTabButtonName) {
-			case LOG_LABEL: 
+			case LOG_TAB: 
 				(currentScreen as MvcExpressLogScreen).showLog(logText);
 				(currentScreen as MvcExpressLogScreen).scrollDown(useAutoScroll);
 				break;
-			case MESSAGES_LABEL: 
+			case MESSAGES_TAB: 
 				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedMessages(currentModuleName));
 				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
-			case MEDIATORS_LABEL: 
+			case MEDIATORS_TAB: 
 				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedMediators(currentModuleName));
 				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
-			case PROXIES_LABEL: 
+			case PROXIES_TAB: 
 				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedProxies(currentModuleName));
 				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
-			case COMMANDS_LABEL: 
+			case COMMANDS_TAB: 
 				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedCommands(currentModuleName));
 				(currentScreen as MvcExpressLogScreen).scrollDown(false);
+				break;
+			case VISUALIZER_TAB:
+				
 				break;
 			default: 
 		}
