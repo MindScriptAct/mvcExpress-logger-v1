@@ -1,6 +1,10 @@
 package com.mindscriptact.mvcExpressLogger {
+import com.bit101.components.CheckBox;
+import com.bit101.components.List;
+import com.bit101.components.NumericStepper;
 import com.bit101.components.PushButton;
 import com.bit101.components.Style;
+import com.bit101.components.Text;
 import com.bit101.components.Window;
 import com.mindscriptact.mvcExpressLogger.screens.MvcExpressLogScreen;
 import flash.display.Shape;
@@ -10,11 +14,14 @@ import flash.events.Event;
 import flash.events.KeyboardEvent;
 import flash.events.MouseEvent;
 import flash.ui.Mouse;
-import org.mvcexpress.core.ModuleCore;
+import flash.utils.setTimeout;
+import org.mvcexpress.core.ModuleManager;
+import org.mvcexpress.modules.ModuleCore;
+import org.mvcexpress.MvcExpress;
 
 /**
  * COMMENT
- * @author Raimundas Banevicius (raima156@yahoo.com)
+ * @author Raimundas Banevicius (http://www.mindscriptact.com/)
  */
 public class MvcExpressLogger {
 	
@@ -26,8 +33,6 @@ public class MvcExpressLogger {
 	//
 	static private var allowInstantiation:Boolean;
 	static private var instance:MvcExpressLogger;
-	//
-	private var mainModule:ModuleCore;
 	// view params
 	private var stage:Stage;
 	private var x:int;
@@ -49,6 +54,13 @@ public class MvcExpressLogger {
 	private var currentTabButtonName:String;
 	//
 	private var logText:String = "";
+	private var currentModuleName:String = "";
+	private var moduleStepper:NumericStepper;
+	private var currentModuleText:Text;
+	private var allModuleNames:Array;
+	private var isRenderWaiting:Boolean = false;
+	private var autoLogCheckBox:CheckBox;
+	private var useAutoScroll:Boolean = true;
 	
 	public function MvcExpressLogger() {
 		if (!allowInstantiation) {
@@ -56,36 +68,53 @@ public class MvcExpressLogger {
 		}
 	}
 	
-	static public function logModule(module:ModuleCore):void {
+	static public function init(stage:Stage, x:int = 0, y:int = 0, width:int = 600, height:int = 400, alpha:Number = 0.9, autoShow:Boolean = false, openKeyCode:int = 192, isCtrlKeyNeeded:Boolean = true, isShiftKeyNeeded:Boolean = false, isAltKeyNeeded:Boolean = false):void {
+		
+		
+		
 		if (!instance) {
 			allowInstantiation = true;
 			instance = new MvcExpressLogger();
 			allowInstantiation = false;
+			
+			//
+			instance.stage = stage;
+			stage.root.addEventListener(KeyboardEvent.KEY_DOWN, instance.handleKeyPress);
+			
+			instance.x = x;
+			instance.y = y;
+			instance.width = width;
+			instance.height = height;
+			instance.alpha = alpha;
+			instance.openKeyCode = openKeyCode;
+			instance.isCtrlKeyNeeded = isCtrlKeyNeeded;
+			instance.isShiftKeyNeeded = isShiftKeyNeeded;
+			instance.isAltKeyNeeded = isAltKeyNeeded;
+			Style.setStyle(Style.DARK);
+			Style.LABEL_TEXT = 0xFFFFFF;
 		}
-		instance.mainModule = module;
-		instance.mainModule.setDebugFunction(instance.traceMvcExpress);
+		
+		MvcExpress.debugFunction = instance.traceMvcExpress;
+		
+		if (autoShow) {
+			instance.showLogger();
+		}
 	}
 	
-	static public function showIn(stage:Stage, x:int = 0, y:int = 0, width:int = 600, height:int = 400, alpha:Number = 0.9, openKeyCode:int = 192, isCtrlKeyNeeded:Boolean = true, isShiftKeyNeeded:Boolean = false, isAltKeyNeeded:Boolean = false):void {
-		if (!instance) {
-			allowInstantiation = true;
-			instance = new MvcExpressLogger();
-			allowInstantiation = false;
+	static public function show():void {
+		if (instance) {
+			instance.showLogger();
+		} else {
+			trace("WARNING: MvcExpressLogger must be MvcExpressLogger.init(); before you can use this function.");
 		}
-		instance.stage = stage;
-		stage.root.addEventListener(KeyboardEvent.KEY_DOWN, instance.handleKeyPress);
-		
-		instance.x = x;
-		instance.y = y;
-		instance.width = width;
-		instance.height = height;
-		instance.alpha = alpha;
-		instance.openKeyCode = openKeyCode;
-		instance.isCtrlKeyNeeded = isCtrlKeyNeeded;
-		instance.isShiftKeyNeeded = isShiftKeyNeeded;
-		instance.isAltKeyNeeded = isAltKeyNeeded;
-		Style.setStyle(Style.DARK);
-		Style.LABEL_TEXT = 0xFFFFFF;
+	}
+	
+	static public function hide():void {
+		if (instance) {
+			instance.showLogger();
+		} else {
+			trace("WARNING: MvcExpressLogger must be MvcExpressLogger.init(); before you can use this function.");
+		}
 	}
 	
 	private function traceMvcExpress(msg:String):void {
@@ -93,7 +122,51 @@ public class MvcExpressLogger {
 		logText += msg + "\n";
 		//
 		if (isLogShown) {
-			render();
+			
+			var logType:String = msg.substr(0, 2);
+			
+			if (logType == "##") {
+				setTimeout(resolveCurrentModuleName, 1);
+			} else {
+				switch (currentTabButtonName) {
+					case LOG_LABEL: 
+						render();
+						break;
+					case MESSAGES_LABEL: 
+						if (logType == "••" || logType == "•>") {
+							if (!isRenderWaiting) {
+								isRenderWaiting = true;
+								setTimeout(render, 1);
+							}
+						}
+						break;
+					case MEDIATORS_LABEL: 
+						if (logType == "§§") {
+							if (!isRenderWaiting) {
+								isRenderWaiting = true;
+								setTimeout(render, 1);
+							}
+						}
+						break;
+					case PROXIES_LABEL: 
+						if (logType == "¶¶") {
+							if (!isRenderWaiting) {
+								isRenderWaiting = true;
+								setTimeout(render, 1);
+							}
+						}
+						break;
+					case COMMANDS_LABEL: 
+						if (logType == "©©") {
+							if (!isRenderWaiting) {
+								isRenderWaiting = true;
+								setTimeout(render, 1);
+							}
+						}
+						break;
+					default: 
+				}
+			}
 		}
 	}
 	
@@ -118,42 +191,118 @@ public class MvcExpressLogger {
 			logWindow.hasCloseButton = true;
 			logWindow.addEventListener(Event.CLOSE, hideLogger);
 			
+			//
+			
+			moduleStepper = new NumericStepper(logWindow, 120, 5, handleModuleChange);
+			moduleStepper.width = 32;
+			moduleStepper.minimum = 0;
+			moduleStepper.isCircular = true;
+			
+			currentModuleText = new Text(logWindow, 0, 0, "...");
+			currentModuleText.editable = false;
+			currentModuleText.width = 120;
+			currentModuleText.height = 22
+			
+			var rectangle:Shape = new Shape();
+			rectangle.graphics.lineStyle(1, 0xFFFFFF);
+			rectangle.graphics.drawRect(0, 0, 120, 22);
+			logWindow.addChild(rectangle);
+			
 			allButtons = new Vector.<PushButton>();
 			
 			var logButton:PushButton = new PushButton(logWindow, 0, -0, LOG_LABEL, handleButtonClick);
 			logButton.toggle = true;
-			logButton.width = 100;
+			logButton.width = 50;
+			logButton.x = moduleStepper.x + moduleStepper.width + 10;
 			allButtons.push(logButton);
 			
 			var messageMapingButton:PushButton = new PushButton(logWindow, 0, -0, MESSAGES_LABEL, handleButtonClick);
 			messageMapingButton.toggle = true;
-			messageMapingButton.width = 100;
+			messageMapingButton.width = 60;
 			messageMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(messageMapingButton);
 			
 			var mediatorMapingButton:PushButton = new PushButton(logWindow, 0, -0, MEDIATORS_LABEL, handleButtonClick);
 			mediatorMapingButton.toggle = true;
-			mediatorMapingButton.width = 100;
+			mediatorMapingButton.width = 60;
 			mediatorMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(mediatorMapingButton);
 			
 			var proxyMapingButton:PushButton = new PushButton(logWindow, 0, -0, PROXIES_LABEL, handleButtonClick);
 			proxyMapingButton.toggle = true;
-			proxyMapingButton.width = 100;
+			proxyMapingButton.width = 50;
 			proxyMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(proxyMapingButton);
 			
 			var commandMapingButton:PushButton = new PushButton(logWindow, 0, -0, COMMANDS_LABEL, handleButtonClick);
 			commandMapingButton.toggle = true;
-			commandMapingButton.width = 100;
+			commandMapingButton.width = 60;
 			commandMapingButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 5;
 			allButtons.push(commandMapingButton);
+			
+			var clearButton:PushButton = new PushButton(logWindow, 0, 5, "clear log", handleClearLog);
+			clearButton.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 10;
+			clearButton.width = 50;
+			clearButton.height = 15;
+			
+			autoLogCheckBox = new CheckBox(logWindow, 0, 5, "autoScroll", handleAutoScrollTogle);
+			autoLogCheckBox.x = allButtons[allButtons.length - 1].x + allButtons[allButtons.length - 1].width + 70;
+			autoLogCheckBox.selected = true;
 			
 		}
 		//forceThisOnTop();
 		stage.addChild(logWindow);
 		
+		resolveCurrentModuleName();
+		
 		handleButtonClick();
+	}
+	
+	private function handleClearLog(event:MouseEvent):void {
+		trace("MvcExpressLogger.handleClearLog > event : " + event);
+		logText = "";
+		render();
+	}
+	
+	private function handleAutoScrollTogle(event:MouseEvent):void {
+		trace("MvcExpressLogger.handleAutoScrollTogle > event : " + event);
+		
+		useAutoScroll = (event.target as CheckBox).selected;
+		(currentScreen as MvcExpressLogScreen).scrollDown(useAutoScroll);
+	}
+	
+	private function resolveCurrentModuleName():void {
+		var moduleNameList:String = ModuleManager.listModules();
+		var namesOnly:Array = moduleNameList.split(":");
+		if (namesOnly.length > 1) {
+			allModuleNames = namesOnly[1].split(",");
+			if (currentModuleName) {
+				if (moduleStepper.value > 0) {
+					if (allModuleNames[moduleStepper.value - 1] == currentModuleName) {
+						moduleStepper.value -= 1;
+					} else if (moduleStepper.value >= allModuleNames.length || allModuleNames[moduleStepper.value] != currentModuleName) {
+						moduleStepper.value = 0;
+						currentModuleName = allModuleNames[0];
+					}
+				}
+				
+			} else {
+				currentModuleName = allModuleNames[0];
+			}
+			
+			currentModuleText.text = currentModuleName;
+		}
+		moduleStepper.maximum = allModuleNames.length - 1;
+		
+		currentModuleName = currentModuleName;
+		
+		render();
+	}
+	
+	private function handleModuleChange(event:Event):void {
+		currentModuleName = allModuleNames[moduleStepper.value];
+		currentModuleText.text = currentModuleName;
+		render();
 	}
 	
 	private function handleButtonClick(event:MouseEvent = null):void {
@@ -177,6 +326,9 @@ public class MvcExpressLogger {
 				currentScreen = null;
 			}
 			currentTabButtonName = targetButton.label;
+			
+			autoLogCheckBox.visible = (currentTabButtonName == LOG_LABEL)
+			
 			switch (currentTabButtonName) {
 				default: 
 					currentScreen = new MvcExpressLogScreen(width - 6, height - 52);
@@ -195,22 +347,28 @@ public class MvcExpressLogger {
 	}
 	
 	private function render():void {
+		isRenderWaiting = false;
+		
 		switch (currentTabButtonName) {
 			case LOG_LABEL: 
 				(currentScreen as MvcExpressLogScreen).showLog(logText);
-				//(currentScreen as MvcExpressLogScreen).scrollDown();
+				(currentScreen as MvcExpressLogScreen).scrollDown(useAutoScroll);
 				break;
 			case MESSAGES_LABEL: 
-				(currentScreen as MvcExpressLogScreen).showLog(mainModule.listMappedMessages());
+				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedMessages(currentModuleName));
+				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
 			case MEDIATORS_LABEL: 
-				(currentScreen as MvcExpressLogScreen).showLog(mainModule.listMappedMediators());
+				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedMediators(currentModuleName));
+				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
 			case PROXIES_LABEL: 
-				(currentScreen as MvcExpressLogScreen).showLog(mainModule.listMappedProxies());
+				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedProxies(currentModuleName));
+				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
 			case COMMANDS_LABEL: 
-				(currentScreen as MvcExpressLogScreen).showLog(mainModule.listMappedCommands());
+				(currentScreen as MvcExpressLogScreen).showLog(ModuleManager.listMappedCommands(currentModuleName));
+				(currentScreen as MvcExpressLogScreen).scrollDown(false);
 				break;
 			default: 
 		}

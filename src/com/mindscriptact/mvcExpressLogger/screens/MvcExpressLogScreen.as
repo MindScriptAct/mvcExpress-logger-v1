@@ -6,7 +6,7 @@ import flash.utils.setTimeout;
 
 /**
  * COMMENT
- * @author Raimundas Banevicius (raima156@yahoo.com)
+ * @author Raimundas Banevicius (http://www.mindscriptact.com/)
  */
 public class MvcExpressLogScreen extends Sprite {
 	private var screenWidth:int;
@@ -28,14 +28,9 @@ public class MvcExpressLogScreen extends Sprite {
 		txt.text = log;
 	}
 	
-	//public function scrollDown():void {
-		//setTimeout(doScroll, 100);
-	//
-	//}
-	//
-	//public function doScroll():void {
-		//txt.scrollDown();
-	//}
+	public function scrollDown(autoScroll:Boolean = true):void {
+		txt.autoScroll = autoScroll;
+	}
 
 }
 }
